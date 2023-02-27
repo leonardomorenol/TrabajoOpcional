@@ -1,0 +1,143 @@
+---
+title: "Respaldo de ejercicio trabajo DF"
+author: "Leonardo Moreno"
+date: "03-12-2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#El archivo está aquí:
+# https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_CSV.zip
+library(glue)
+library(quantmod)
+library(ggplot2)
+library(tidyquant)
+```
+
+
+```{r}
+getwd()
+
+temp <- tempfile()
+base <- 
+  "http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
+
+
+factor <- 
+  "F-F_Research_Data_5_Factors_2x3"
+
+format<-
+  "_CSV.zip"
+
+full_url <-
+  glue(base,
+       factor,
+       format,
+       sep ="")
+
+download.file(
+  full_url,
+  temp,
+  quiet = TRUE)
+```
+
+
+```{r}
+unzip <- unz(temp,"F-F_Research_Data_5_Factors_2x3.CSV")
+# Atención, problema dado que la primera columna de fecha no tiene encabezado. 
+# Se eliminan 4 filas Luego se debe agregar nombres
+Global_5_Factors <- read.csv(unzip,sep=",",header = FALSE, skip = 4)
+colnames(Global_5_Factors) <- c("Fecha","MKT","SMB","HML","RMW","CMA","Rf")
+# Se deben extraer las filas que no sirven
+Factors <- Global_5_Factors[-c(1:413,679:746),-c(1)]
+Factors1 <- as.data.frame(apply(Factors, 2, as.numeric)) 
+aapl <- na.approx(getSymbols("AMZN",src="yahoo",from="1997-12-01",to="2019-12-31", periodicity = "monthly"))
+r_AMZN <- dailyReturn(Cl(AMZN),type='arithmetic')*100
+
+df <- data.frame(Date=index(r_AMZN),coredata(r_AMZN))
+
+
+colnames(df)<-c('date',"AMZN")
+df2 <- cbind(df,Factors1)
+```
+
+
+```{r}
+# Regresión CAPM Sharpe
+CAPM <- lm((df2$AMZN-df2$Rf)~df2$MKT) 
+summary(CAPM)
+```
+```{r}
+  ggplot(df2, aes(x=AMZN, y=MKT-Rf)) +
+  labs(title = "Regresión CAPM",
+       y="Retorno de AMZN",
+  x = "Retorno del Mercado") +
+  geom_point(col="#DC6A16") +
+  geom_smooth(method="lm", se=FALSE)+ theme_tq()
+```
+
+```{r}
+#Tasa exigida por el accionista por CAPM
+2.2689 + (1.779 * 2.77)
+```
+```{r}
+#WACC Capm
+0.0584 * 0.6563 * (1-0.1698) + 0.0719 * 0.3437
+```
+
+
+```{r}
+# Regresión modelo 3 factores
+FF3 <- lm((df2$AMZN-df2$Rf)~df2$MKT+df2$SMB+df2$HML) 
+summary(FF3)
+```
+```{r}
+ ggplot(df2, aes(x=MKT+SMB+HML, y=AMZN-Rf)) +
+labs(title = "Regresión Fama y French 3 Factores",
+       y="Retorno de AMZN",
+  x = "Retornos asociados a cada prima de riesgo") +
+  geom_point(col="#DC6A16") +
+  geom_smooth(method="lm", se=FALSE)+ theme_tq()
+```
+
+
+```{r}
+#Tasa exigida FF3
+2.5242 + (1.7579 * 2.77) + (-0.6422 * 0.96) + (-1.4491 * 1.93)
+```
+
+```{r}
+#WACC F3
+0.0584 * 0.6563 * (1-0.1698) + 0.0398 * 0.3437
+```
+
+
+```{r}
+# Regresión modelo Fama french 5 factores
+FF2015 <- lm((df2$AMZN-df2$Rf)~df2$MKT+df2$SMB+df2$HML+df2$RMW+df2$CMA)
+summary(FF2015)
+```
+```{r}
+ ggplot(df2, aes(x=MKT+SMB+HML+RMW+CMA, y=AMZN-Rf)) +
+ labs(title = "Regresión Fama y French 5 Factores",
+       y="Retorno de AMZN",
+  x = "Retornos asociados a cada prima de riesgo") +
+  geom_point(col="#DC6A16") +
+  geom_smooth(method="lm", se=FALSE) +theme_tq()
+```
+
+
+```{r}
+#Tasa exigida F5
+2.8335 + (1.5961 * 2.77) + (-0.671 * 0.96) + (-1.0278 * 1.93) + (-0.2519 * 0.09) + (-0.7877* 1.29)
+```
+
+```{r}
+0.0584 * 0.6563 * (1-0.1698) + 0.0398 * 0.3588
+```
+
+
